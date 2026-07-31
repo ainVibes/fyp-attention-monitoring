@@ -17,7 +17,7 @@ These signals are combined into a per-student attention score, visualized on a l
 ## Hardware
 
 - Raspberry Pi 5
-- Logitech C920 USB webcam *(originally designed for Pi Camera Module V3 Wide, migrated to USB webcam during development)*
+- Pi Camera Module V3 Wide (120° FOV)
 
 ## Tech Stack
 
