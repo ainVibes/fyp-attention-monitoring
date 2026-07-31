@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classroom Attention Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1724; font-family: 'Segoe UI', sans-serif; color: #fff; min-height: 100vh; }
+
+  .topbar {
+    background: #1a2740;
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #2a3f60;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 500; letter-spacing: 1px; color: #fff; }
+  .live { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #00c9a7; }
+  .dot  { width: 8px; height: 8px; border-radius: 50%; background: #00c9a7;
+          animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* Session control bar */
+  .control-bar {
+    background: #1a2740;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid #2a3f60;
+    flex-wrap: wrap;
+  }
+  .control-bar input {
+    background: #0f1724;
+    border: 1px solid #2a3f60;
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 6px;
+    width: 190px;
+    font-size: 13px;
+  }
+  .control-bar button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  #startBtn { background: #00c9a7; color: #0f1724; }
+  #startBtn:hover { background: #00e0ba; }
+  #stopBtn  { background: #e05c5c; color: #fff; }
+  #stopBtn:hover { background: #ff7070; }
+  #sessionStatus { font-size: 13px; color: #8ea8c3; }
+  #timerDisplay  { font-size: 13px; color: #f9c846; }
+
+  .main { display: grid; grid-template-columns: 1fr 420px; gap: 16px; padding: 16px; }
+
+  /* Left column */
+  .left { display: flex; flex-direction: column; gap: 12px; }
+
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .card  { background: #1a2740; border-radius: 10px; padding: 14px;
+           border-left: 3px solid #3d8bff; }
+  .card.green  { border-color: #00c9a7; }
+  .card.blue   { border-color: #3d8bff; }
+  .card.amber  { border-color: #f9c846; }
+  .card.red    { border-color: #e05c5c; }
+  .card-label  { font-size: 10px; color: #8ea8c3; text-transform: uppercase;
+                 letter-spacing: 1px; margin-bottom: 6px; }
+  .card-val    { font-size: 26px; font-weight: 600; }
+  .card-sub    { font-size: 10px; color: #8ea8c3; margin-top: 3px; }
+
+  .video-wrap  { background: #1a2740; border-radius: 10px; overflow: hidden; }
+  .video-wrap img { width: 100%; display: block; }
+
+  .alert-box {
+    background: #2d1a1a; border: 1px solid #e05c5c;
+    border-radius: 10px; padding: 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .alert-box.ok { background: #0f2d1a; border-color: #00c9a7; }
+  .alert-icon { font-size: 22px; }
+  .alert-title { font-size: 14px; font-weight: 500; }
+  .alert-sub   { font-size: 12px; color: #8ea8c3; margin-top: 3px; }
+
+  /* Right column */
+  .right { display: flex; flex-direction: column; gap: 12px; }
+
+  .panel { background: #1a2740; border-radius: 10px; padding: 16px; }
+  .panel-title { font-size: 11px; color: #8ea8c3; text-transform: uppercase;
+                 letter-spacing: 1px; margin-bottom: 12px; }
+
+  /* Feature bars */
+  .bar-row   { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .bar-label { font-size: 12px; color: #c8d8e8; width: 90px; flex-shrink: 0; }
+  .bar-bg    { flex: 1; background: #0f1724; border-radius: 4px; height: 8px; }
+  .bar-fill  { height: 8px; border-radius: 4px; transition: width 0.5s; }
+  .bar-pct   { font-size: 12px; color: #8ea8c3; width: 36px; text-align: right; }
+
+  /* Student grid */
+  .student-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .stu { border-radius: 6px; padding: 6px 4px; text-align: center;
+         font-size: 11px; font-weight: 500; }
+  .stu.attentive   { background: #0f3d2e; color: #00c9a7; }
+  .stu.distracted  { background: #2d1a1a; color: #e05c5c; }
+  .stu.yawning     { background: #2d2a10; color: #f9c846; }
+  .stu.drowsy      { background: #1a2040; color: #3d8bff; }
+  .stu.bad-posture { background: #2a1040; color: #b060ff; }
+  .stu.empty       { background: #141e2e; color: #3a4a5a; }
+
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .legend span { font-size: 10px; color: #8ea8c3; }
+
+  /* Attention graph */
+  #attn-graph { width: 100%; height: 80px; }
+
+  /* Stats table */
+  .stat-row { display: flex; justify-content: space-between;
+              padding: 7px 0; border-bottom: 1px solid #1e2e44; font-size: 13px; }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-key { color: #8ea8c3; }
+  .stat-val { color: #fff; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Classroom Attention Monitor</h1>
+  <div class="live"><div class="dot"></div><span id="live-label">Connecting...</span></div>
+</div>
+
+<div class="control-bar">
+  <input type="number" id="durationInput" placeholder="Minutes (blank = no limit)" min="1">
+  <button id="startBtn" onclick="startSession()">▶ Start Monitoring</button>
+  <button id="stopBtn" onclick="stopSession()">■ Stop</button>
+  <span id="sessionStatus">Stopped</span>
+  <span id="timerDisplay"></span>
+</div>
+
+<div class="main">
+
+  <!-- LEFT -->
+  <div class="left">
+
+    <div class="cards">
+      <div class="card green">
+        <div class="card-label">Students detected</div>
+        <div class="card-val" id="c-students">0</div>
+        <div class="card-sub">via YOLOv8</div>
+      </div>
+      <div class="card blue">
+        <div class="card-label">Attentive</div>
+        <div class="card-val" id="c-attentive">0</div>
+        <div class="card-sub" id="c-attentive-sub">of 0 faces</div>
+      </div>
+      <div class="card amber">
+        <div class="card-label">Attention score</div>
+        <div class="card-val" id="c-score">0%</div>
+        <div class="card-sub" id="c-thresh">threshold: 70%</div>
+      </div>
+      <div class="card red" id="c-alert-card">
+        <div class="card-label">Alert status</div>
+        <div class="card-val" id="c-alert-val">—</div>
+        <div class="card-sub" id="c-alert-sub">waiting...</div>
+      </div>
+    </div>
+
+    <!-- Live video feed -->
+    <div class="video-wrap">
+      <img src="/video_feed" alt="Live camera feed">
+    </div>
+
+    <!-- Alert banner -->
+    <div class="alert-box ok" id="alert-banner">
+      <div class="alert-icon">✅</div>
+      <div>
+        <div class="alert-title" id="alert-title">Class attention is good</div>
+        <div class="alert-sub"  id="alert-sub">No action needed</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+
+    <!-- Feature breakdown -->
+    <div class="panel">
+      <div class="panel-title">Feature breakdown</div>
+      <div class="bar-row">
+        <div class="bar-label">Head pose</div>
+        <div class="bar-bg"><div class="bar-fill" id="bar-pose" style="width:0%;background:#3d8bff;"></div></div>
+        <div class="bar-pct" id="pct-pose">0%</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Eye blink</div>
+        <div class="bar-bg"><div class="bar-fill" id="bar-ear" style="width:0%;background:#00c9a7;"></div></div>
+        <div class="bar-pct" id="pct-ear">0%</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Yawning</div>
+        <div class="bar-bg"><div class="bar-fill" id="bar-yawn" style="width:0%;background:#f9c846;"></div></div>
+        <div class="bar-pct" id="pct-yawn">0%</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Posture</div>
+        <div class="bar-bg"><div class="bar-fill" id="bar-posture" style="width:0%;background:#b060ff;"></div></div>
+        <div class="bar-pct" id="pct-posture">0%</div>
+      </div>
+    </div>
+
+    <!-- Attention history graph -->
+    <div class="panel">
+      <div class="panel-title">Attention history (last 60s)</div>
+      <canvas id="attn-graph"></canvas>
+    </div>
+
+    <!-- Student status grid -->
+    <div class="panel">
+      <div class="panel-title">Student status grid</div>
+      <div class="student-grid" id="student-grid"></div>
+      <div class="legend">
+        <span style="color:#00c9a7">● Attentive</span>
+        <span style="color:#e05c5c">● Distracted</span>
+        <span style="color:#f9c846">● Yawning</span>
+        <span style="color:#3d8bff">● Drowsy</span>
+        <span style="color:#b060ff">● Bad posture</span>
+      </div>
+    </div>
+
+    <!-- Live stats -->
+    <div class="panel">
+      <div class="panel-title">Live stats</div>
+      <div class="stat-row"><span class="stat-key">FPS</span><span class="stat-val" id="s-fps">—</span></div>
+      <div class="stat-row"><span class="stat-key">Blinks / min</span><span class="stat-val" id="s-blinks">—</span></div>
+      <div class="stat-row"><span class="stat-key">Yawning now</span><span class="stat-val" id="s-yawn">—</span></div>
+      <div class="stat-row"><span class="stat-key">Posture</span><span class="stat-val" id="s-posture">—</span></div>
+      <div class="stat-row"><span class="stat-key">Shoulder tilt</span><span class="stat-val" id="s-tilt">—</span></div>
+      <div class="stat-row"><span class="stat-key">Spine lean</span><span class="stat-val" id="s-spine">—</span></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const canvas  = document.getElementById('attn-graph');
+const ctx     = canvas.getContext('2d');
+canvas.width  = canvas.offsetWidth;
+canvas.height = 80;
+
+function drawGraph(history) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (history.length < 2) return;
+  const step = canvas.width / (history.length - 1);
+
+  // threshold line
+  ctx.strokeStyle = '#e05c5c';
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([4, 4]);
+  const ty = canvas.height - (70 / 100 * canvas.height);
+  ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(canvas.width, ty); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // attention line
+  ctx.strokeStyle = '#00c9a7';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  history.forEach((v, i) => {
+    const x = i * step;
+    const y = canvas.height - (v / 100 * canvas.height);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function updateStudentGrid(faces) {
+  const grid = document.getElementById('student-grid');
+  grid.innerHTML = '';
+  const MAX = 20;
+  for (let i = 0; i < MAX; i++) {
+    const div = document.createElement('div');
+    div.className = 'stu';
+    if (i < faces.length) {
+      const f = faces[i];
+      div.classList.add(f.status.toLowerCase().replace(' ', '-'));
+      div.textContent = 'S' + String(i+1).padStart(2,'0');
+    } else {
+      div.classList.add('empty');
+      div.textContent = '—';
+    }
+    grid.appendChild(div);
+  }
+}
+
+function pct(n, total) {
+  return total > 0 ? Math.round(n / total * 100) : 0;
+}
+
+/* ---- Session control ---- */
+function startSession() {
+  const mins = document.getElementById('durationInput').value;
+  fetch('/api/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({duration_minutes: mins ? parseFloat(mins) : null})
+  });
+}
+
+function stopSession() {
+  fetch('/api/stop', { method: 'POST' });
+}
+
+async function updateSessionStatus() {
+  try {
+    const res = await fetch('/api/session_status');
+    const s = await res.json();
+    document.getElementById('sessionStatus').textContent = s.active ? 'Running' : 'Stopped';
+    if (s.active && s.end_time) {
+      const remaining = Math.max(0, Math.round(s.end_time - Date.now()/1000));
+      const mm = Math.floor(remaining/60);
+      const ss = remaining % 60;
+      document.getElementById('timerDisplay').textContent = `${mm}m ${ss}s remaining`;
+    } else if (s.active) {
+      document.getElementById('timerDisplay').textContent = 'No time limit set';
+    } else {
+      document.getElementById('timerDisplay').textContent = '';
+    }
+  } catch (e) {
+    console.log('Session status fetch failed:', e);
+  }
+}
+
+/* ---- Live stats ---- */
+async function update() {
+  try {
+    const res  = await fetch('/stats');
+    const data = await res.json();
+
+    document.getElementById('live-label').textContent =
+      'Live · ' + data.face_count + ' face(s) detected';
+
+    // Cards
+    document.getElementById('c-students').textContent  = data.student_count;
+    document.getElementById('c-attentive').textContent = data.attentive_count;
+    document.getElementById('c-attentive-sub').textContent =
+      'of ' + data.face_count + ' faces';
+    document.getElementById('c-score').textContent = data.attention_pct + '%';
+
+    const alertCard = document.getElementById('c-alert-card');
+    const alertVal  = document.getElementById('c-alert-val');
+    const alertSub  = document.getElementById('c-alert-sub');
+    if (data.alert) {
+      alertCard.style.borderColor = '#e05c5c';
+      alertVal.style.color        = '#e05c5c';
+      alertVal.textContent        = 'LOW';
+      alertSub.textContent        = 'Action needed!';
+    } else {
+      alertCard.style.borderColor = '#00c9a7';
+      alertVal.style.color        = '#00c9a7';
+      alertVal.textContent        = 'GOOD';
+      alertSub.textContent        = 'Class is on track';
+    }
+
+    // Alert banner
+    const banner = document.getElementById('alert-banner');
+    const title  = document.getElementById('alert-title');
+    const sub    = document.getElementById('alert-sub');
+    if (data.alert) {
+      banner.className  = 'alert-box';
+      banner.querySelector('.alert-icon').textContent = '⚠️';
+      title.textContent = 'Attention dropped below ' + data.attention_pct + '%!';
+      sub.textContent   = 'Recommendation: Take a short break or change activity';
+    } else {
+      banner.className  = 'alert-box ok';
+      banner.querySelector('.alert-icon').textContent = '✅';
+      title.textContent = 'Class attention is good (' + data.attention_pct + '%)';
+      sub.textContent   = 'No action needed';
+    }
+
+    // Feature bars — approximate from faces array
+    const faces = data.faces || [];
+    const total = faces.length || 1;
+    const poseOk    = pct(faces.filter(f => f.status !== 'DISTRACTED').length, total);
+    const earOk     = pct(faces.filter(f => !f.drowsy).length, total);
+    const yawnOk    = pct(faces.filter(f => !f.yawning).length, total);
+    const postureOk = pct(faces.filter(f => f.posture_ok).length, total);
+
+    document.getElementById('bar-pose').style.width    = poseOk    + '%';
+    document.getElementById('bar-ear').style.width     = earOk     + '%';
+    document.getElementById('bar-yawn').style.width    = yawnOk    + '%';
+    document.getElementById('bar-posture').style.width = postureOk + '%';
+    document.getElementById('pct-pose').textContent    = poseOk    + '%';
+    document.getElementById('pct-ear').textContent     = earOk     + '%';
+    document.getElementById('pct-yawn').textContent    = yawnOk    + '%';
+    document.getElementById('pct-posture').textContent = postureOk + '%';
+
+    // Graph
+    drawGraph(data.history || []);
+
+    // Student grid
+    updateStudentGrid(faces);
+
+    // Stats
+    document.getElementById('s-fps').textContent     = data.fps + ' fps';
+    document.getElementById('s-blinks').textContent  = data.blinks_per_min;
+    document.getElementById('s-yawn').textContent    = data.yawning_count + ' face(s)';
+    document.getElementById('s-posture').textContent = data.posture_status;
+    document.getElementById('s-tilt').textContent    = data.shoulder_tilt + '°';
+    document.getElementById('s-spine').textContent   = data.spine_angle + '°';
+
+  } catch(e) {
+    console.log('Stats fetch failed:', e);
+  }
+}
+
+// Poll every second
+setInterval(() => { update(); updateSessionStatus(); }, 1000);
+update();
+updateSessionStatus();
+</script>
+</body>
+</html>

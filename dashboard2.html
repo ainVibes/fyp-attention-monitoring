@@ -1,0 +1,41 @@
+<script>
+function startSession() {
+    const mins = document.getElementById('durationInput').value;
+    fetch('/api/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({duration_minutes: mins ? parseFloat(mins) : null})
+    });
+}
+
+function stopSession() {
+    fetch('/api/stop', { method: 'POST' });
+}
+
+setInterval(() => {
+    fetch('/stats')
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('faces').innerText = data.face_count;
+        document.getElementById('attentive').innerText = data.attentive_count;
+        document.getElementById('attention').innerText = data.attention_pct;
+        document.getElementById('fps').innerText = data.fps;
+    });
+
+    fetch('/api/session_status')
+    .then(res => res.json())
+    .then(s => {
+        document.getElementById('sessionStatus').innerText = s.active ? 'Running' : 'Stopped';
+        if (s.active && s.end_time) {
+            const remaining = Math.max(0, Math.round(s.end_time - Date.now()/1000));
+            const mm = Math.floor(remaining/60);
+            const ss = remaining%60;
+            document.getElementById('timerDisplay').innerText = `${mm}m ${ss}s remaining`;
+        } else if (s.active) {
+            document.getElementById('timerDisplay').innerText = 'No time limit set';
+        } else {
+            document.getElementById('timerDisplay').innerText = '';
+        }
+    });
+}, 1000);
+</script>
